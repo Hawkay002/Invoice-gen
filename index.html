@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
         :root {
             --bg-primary: #f8f8f8;
@@ -180,9 +181,8 @@
 
         .btn {
             display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 100%;
+            align-items: center !important;
+            justify-content: center !important;
             gap: 8px;
             padding: 12px 20px;
             background: var(--accent-blue);
@@ -398,12 +398,6 @@
             font-size: 0.9rem;
         }
         
-        
-        
-        .bill-charges h3 {
-            font-size: 1rem;
-        }
-
         .bill-charge-item {
             display: flex;
             justify-content: space-between;
@@ -629,7 +623,6 @@
         .edit-btn {
             background: rgba(0,123,255,0.1);
             color: var(--accent-blue);
-            display: none;
         }
         
         .delete-btn {
@@ -800,6 +793,52 @@
                 display: none;
             }
         }
+        
+        /* PDF Export Controls */
+        .export-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding: 10px;
+            background: #f9f9f9;
+            border-radius: 5px;
+            border: 1px solid var(--border-color);
+        }
+        
+        .select-all {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .bill-card-checkbox {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+        }
+        
+        /* PDF Loading Modal */
+        .pdf-loading {
+            text-align: center;
+            padding: 30px;
+        }
+        
+        .pdf-progress {
+            width: 100%;
+            height: 10px;
+            background: #e0e0e0;
+            border-radius: 5px;
+            margin: 20px 0;
+            overflow: hidden;
+        }
+        
+        .pdf-progress-bar {
+            height: 100%;
+            background: var(--accent-blue);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
 
         @media (max-width: 768px) {
             .settings-group {
@@ -845,6 +884,34 @@
             .bill-card-actions {
                 flex-direction: column;
             }
+            
+            .export-controls {
+                flex-direction: column;
+                gap: 10px;
+                align-items: flex-start;
+            }
+        }
+        
+        /* PDF Bill Preview */
+        .pdf-bill-preview {
+            width: 100%;
+            max-width: 700px;
+            margin: 0 auto;
+            padding: 20px;
+            background: white;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        /* PDF-specific styles */
+        .pdf-page {
+            width: 210mm;
+            height: 297mm;
+            padding: 20mm;
+            background: white;
+            box-shadow: 0 0 5px rgba(0,0,0,0.1);
+            position: absolute;
+            left: -9999px;
         }
     </style>
 </head>
@@ -919,6 +986,16 @@
         </div>
         
         <div id="previousBills" class="tab-content">
+            <div class="export-controls">
+                <div class="select-all">
+                    <input type="checkbox" id="selectAllBills">
+                    <label for="selectAllBills">Select All</label>
+                </div>
+                <button id="exportPdfBtn" class="btn">
+                    <i class="fas fa-file-pdf"></i> Export Selected to PDF
+                </button>
+            </div>
+            
             <h2 style="margin-bottom: 15px;"><i class="fas fa-history"></i> Previous Bills</h2>
             <div id="previousBillsList">
                 <div class="no-bills">
@@ -932,7 +1009,7 @@
     <!-- Bill Preview Modal -->
     <div id="billModal" class="modal">
         <div class="modal-content">
-            <h2 style="margin-bottom: 15px;"><i class="fas fa-file-invoice"></i> Invoice     Preview</h2>
+            <h2 style="margin-bottom: 15px;"><i class="fas fa-file-invoice"></i> Invoice Preview</h2>
             <span class="close-modal">&times;</span>
             
             <div class="bill-preview" id="billPreview">
@@ -1038,10 +1115,6 @@
                     <div class="qr-container">
                         <canvas id="paymentQR"></canvas>
                     </div>
-                    <!--<div class="upi-details">
-                        <span><i class="fas fa-user"></i> Name: Shankar Debnath</span>
-                        <span class="upi-id"><i class="fas fa-id-card"></i> UPI ID: debnathshankar.1971-1@okaxis</span>
-                    </div>-->
                     <div class="payment-note">
                         <i class="fas fa-info-circle"></i> Scan the QR code to pay instantly via any UPI app</div>
                          <div>                   <svg class="upi-icon" viewBox="0 0 24 24">
@@ -1141,6 +1214,20 @@
         </div>
     </div>
     
+    <!-- PDF Loading Modal -->
+    <div id="pdfLoadingModal" class="modal">
+        <div class="modal-content">
+            <div class="pdf-loading">
+                <h2><i class="fas fa-file-pdf"></i> Generating PDF</h2>
+                <p>Please wait while we prepare your document...</p>
+                <div class="pdf-progress">
+                    <div class="pdf-progress-bar" id="pdfProgressBar"></div>
+                </div>
+                <p id="pdfStatus">Processing bill 1 of 1</p>
+            </div>
+        </div>
+    </div>
+    
     <!-- Thermal Bill (Hidden until printed) -->
     <div id="thermal-bill" class="no-print" style="display: none; width: 80mm; padding: 5mm; font-family: 'Courier New', monospace; background: white; color: black; margin: 0 auto;">
         <div class="thermal-header">
@@ -1230,6 +1317,13 @@
             <div class="thermal-note">Scan QR to pay via UPI</div>
         </div>
     </div>
+    
+    <!-- PDF Page Template (Hidden) -->
+    <div id="pdf-template" style="display: none;">
+        <div class="pdf-page">
+            <!-- Content will be inserted here -->
+        </div>
+    </div>
 
     <script>
         // DOM Elements
@@ -1238,6 +1332,7 @@
         const billForm = document.getElementById('billForm');
         const billModal = document.getElementById('billModal');
         const settingsModal = document.getElementById('settingsModal');
+        const pdfLoadingModal = document.getElementById('pdfLoadingModal');
         const closeModal = document.querySelectorAll('.close-modal');
         const shareBtn = document.getElementById('shareBtn');
         const markPaidBtn = document.getElementById('markPaidBtn');
@@ -1248,6 +1343,10 @@
         const formNewBillBtn = document.getElementById('formNewBillBtn');
         const settingsBtn = document.getElementById('settingsBtn');
         const settingsForm = document.getElementById('settingsForm');
+        const selectAllBills = document.getElementById('selectAllBills');
+        const exportPdfBtn = document.getElementById('exportPdfBtn');
+        const pdfProgressBar = document.getElementById('pdfProgressBar');
+        const pdfStatus = document.getElementById('pdfStatus');
         
         // Application settings and bill data
         let settings = JSON.parse(localStorage.getItem('rentSettings')) || {
@@ -1286,6 +1385,17 @@
             
             // Load previous bills
             loadPreviousBills();
+            
+            // Set up select all functionality
+            selectAllBills.addEventListener('change', function() {
+                const checkboxes = document.querySelectorAll('.bill-checkbox');
+                checkboxes.forEach(checkbox => {
+                    checkbox.checked = this.checked;
+                });
+            });
+            
+            // Export PDF button
+            exportPdfBtn.addEventListener('click', exportBillsToPDF);
         });
         
         // Tab switching
@@ -1383,6 +1493,7 @@
             btn.addEventListener('click', () => {
                 billModal.classList.remove('active');
                 settingsModal.classList.remove('active');
+                pdfLoadingModal.classList.remove('active');
             });
         });
         
@@ -1799,6 +1910,9 @@
                 const billCard = document.createElement('div');
                 billCard.className = 'bill-card';
                 billCard.innerHTML = `
+                    <div class="bill-card-checkbox">
+                        <input type="checkbox" class="bill-checkbox" data-id="${bill.id}">
+                    </div>
                     <div class="bill-card-header">
                         <div class="bill-card-date">
                             <i class="fas fa-calendar-alt"></i> ${formattedDate}
@@ -1874,13 +1988,223 @@
                 prevBillsList.appendChild(billCard);
             });
         }
+        
+        // Export selected bills to PDF (Improved Quality)
+        function exportBillsToPDF() {
+            // Get selected bills
+            const selectedCheckboxes = document.querySelectorAll('.bill-checkbox:checked');
+            
+            if (selectedCheckboxes.length === 0) {
+                alert('Please select at least one bill to export');
+                return;
+            }
+            
+            // Get selected bill IDs
+            const selectedIds = Array.from(selectedCheckboxes).map(checkbox => parseInt(checkbox.getAttribute('data-id')));
+            
+            // Get selected bills
+            const selectedBills = bills.filter(bill => selectedIds.includes(bill.id));
+            
+            // Show loading modal
+            pdfProgressBar.style.width = '0%';
+            pdfStatus.textContent = `Processing bill 1 of ${selectedBills.length}`;
+            pdfLoadingModal.classList.add('active');
+            
+            // Create PDF
+            const pdf = new jspdf.jsPDF('p', 'mm', 'a4');
+            let processed = 0;
+            
+            // Process each bill asynchronously
+            selectedBills.forEach((bill, index) => {
+                // Create a new page template
+                const template = document.getElementById('pdf-template').cloneNode(true);
+                template.style.display = 'block';
+                const page = template.querySelector('.pdf-page');
+                document.body.appendChild(template);
+                
+                // Populate with bill data
+                const date = new Date(bill.date);
+                const options = { 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                };
+                
+                page.innerHTML = `
+                    <div class="bill-header">
+                        <h2 class="bill-title">
+                            <i class="fas fa-file-invoice"></i> Rent & Utilities Invoice</h2>
+                        <div class="bill-date">
+                            <i class="fas fa-calendar-alt"></i> <span>${date.toLocaleDateString('en-IN', options)}</span>
+                        </div>
+                        <div class="bill-status status-${bill.status}">${bill.status.charAt(0).toUpperCase() + bill.status.slice(1)}</div>
+                    </div>
+                    
+                    <div class="bill-details">
+                        <div class="bill-section">
+                            <h3><i class="fas fa-home"></i> Owner Information</h3>
+                            <p><i class="fas fa-user"></i> <span>${settings.ownerName}</span></p>
+                            <p><i class="fas fa-phone"></i> <span>${settings.ownerPhone}</span></p>
+                        </div>
+                        
+                        <div class="bill-section">
+                            <h3><i class="fas fa-user"></i> Tenant Information</h3>
+                            <p><i class="fas fa-user"></i> <span>${settings.tenantName}</span></p>
+                            <p><i class="fas fa-phone"></i> <span>${settings.tenantPhone}</span></p>
+                        </div>
+                    </div>
+                    
+                    <div class="bill-readings">
+                        <h3><i class="fas fa-tachometer-alt" style="margin-bottom: 15px;"></i> Meter Reading Changes</h3>
+                        
+                        <div class="reading-group">
+                            <div class="reading-row">
+                                <div class="reading-type">
+                                    <i class="fas fa-bolt"></i> Electricity
+                                </div>
+                                <div class="reading-values">
+                                    <span>${bill.prevElectricity}</span>
+                                    <i class="fas fa-arrow-right"></i>
+                                    <span>${bill.currElectricity}</span>
+                                </div>
+                            </div>
+                            
+                            <div class="reading-row">
+                                <div class="reading-type">
+                                    <i class="fas fa-snowflake"></i> AC
+                                </div>
+                                <div class="reading-values">
+                                    <span>${bill.prevAC}</span>
+                                    <i class="fas fa-arrow-right"></i>
+                                    <span>${bill.currAC}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="bill-charges">
+                       <h3><i class="fas fa-file-alt"></i> Bill Breakup Details</h3>
+                        <div class="bill-charge-item">
+                            <div class="bill-charge-label">
+                                <div class="bill-charge-service">
+                                    <i class="fas fa-home"></i> Rent</div>
+                            </div>
+                            <div class="bill-charge-value">₹${bill.rent.toFixed(2)}</div>
+                        </div>
+                        <div class="bill-charge-item">
+                            <div class="bill-charge-label">
+                                <div class="bill-charge-service">
+                                    <i class="fas fa-tint"></i> Water</div>
+                            </div>
+                            <div class="bill-charge-value">₹${bill.water.toFixed(2)}</div>
+                        </div>
+                        <div class="bill-charge-item">
+                            <div class="bill-charge-label">
+                                <div class="bill-charge-service">
+                                    <i class="fas fa-bolt"></i> Electricity
+                                </div>
+                                <div class="bill-charge-details">
+                                    (${bill.elecUnits} units × ₹${settings.electricityRate})
+                                </div>
+                            </div>
+                            <div class="bill-charge-value">₹${bill.elecCharge.toFixed(2)}</div>
+                        </div>
+                        <div class="bill-charge-item">
+                            <div class="bill-charge-label">
+                                <div class="bill-charge-service">
+                                    <i class="fas fa-snowflake"></i> AC
+                                </div>
+                                <div class="bill-charge-details">
+                                    (${bill.acUnits} units × ₹${settings.acRate})
+                                </div>
+                            </div>
+                            <div class="bill-charge-value">₹${bill.acCharge.toFixed(2)}</div>
+                        </div>
+                    
+                    <div class="bill-total">
+                        <span><i class="fas fa-receipt"></i> Total Amount:</span>
+                        <span>₹${bill.total.toFixed(2)}</span>
+                    </div>
+                    </div>
+                `;
+                
+                // Use html2canvas to capture the bill as image with high quality settings
+                setTimeout(() => {
+                    html2canvas(page, {
+                        scale: 2, // Increased scale for higher quality
+                        useCORS: true,
+                        logging: false,
+                        backgroundColor: "#ffffff",
+                        allowTaint: true
+                    }).then(canvas => {
+                        // Get image data (use PNG for lossless quality)
+                        const imgData = canvas.toDataURL('image/png');
+                        
+                        // Add page if not the first bill
+                        if (index > 0) {
+                            pdf.addPage();
+                        }
+                        
+                        // Add image to PDF
+                        const imgProps = pdf.getImageProperties(imgData);
+                        const pdfWidth = pdf.internal.pageSize.getWidth();
+                        const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+                        
+                        // Center the image on the page
+                        const x = (pdf.internal.pageSize.getWidth() - pdfWidth) / 2;
+                        const y = (pdf.internal.pageSize.getHeight() - pdfHeight) / 2;
+                        
+                        pdf.addImage(imgData, 'PNG', x, y, pdfWidth, pdfHeight);
+                        
+                        // Remove temporary element
+                        document.body.removeChild(template);
+                        
+                        // Update progress
+                        processed++;
+                        const progress = Math.round((processed / selectedBills.length) * 100);
+                        pdfProgressBar.style.width = `${progress}%`;
+                        pdfStatus.textContent = `Processed bill ${processed} of ${selectedBills.length}`;
+                        
+                        // If this is the last bill, save the PDF
+                        if (processed === selectedBills.length) {
+                            // Save the PDF
+                            pdf.save(`rent-bills-${new Date().toISOString().slice(0, 10)}.pdf`);
+                            
+                            // Close loading modal
+                            pdfLoadingModal.classList.remove('active');
+                        }
+                    }).catch(error => {
+                        console.error('Error generating bill image:', error);
+                        // Remove temporary element
+                        document.body.removeChild(template);
+                        
+                        // Update progress
+                        processed++;
+                        const progress = Math.round((processed / selectedBills.length) * 100);
+                        pdfProgressBar.style.width = `${progress}%`;
+                        pdfStatus.textContent = `Processed bill ${processed} of ${selectedBills.length}`;
+                        
+                        // If this is the last bill, save the PDF
+                        if (processed === selectedBills.length) {
+                            // Save the PDF
+                            pdf.save(`rent-bills-${new Date().toISOString().slice(0, 10)}.pdf`);
+                            
+                            // Close loading modal
+                            pdfLoadingModal.classList.remove('active');
+                        }
+                    });
+                }, 100); // Small delay to ensure rendering
+            });
+        }
     </script>
     <script>
         if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/service-worker.js')
-    .then(() => console.log('Service Worker Registered'))
-    .catch(err => console.error('Service Worker registration failed', err));
-}
+            navigator.serviceWorker.register('/service-worker.js')
+                .then(() => console.log('Service Worker Registered'))
+                .catch(err => console.error('Service Worker registration failed', err));
+        }
     </script>
 </body>
 </html>
